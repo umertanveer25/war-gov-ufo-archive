@@ -1,7 +1,6 @@
 """
-Cloud Downloader for GitHub Actions Runner
-Fetches DVIDS videos/audio and declassified assets in the cloud,
-and packages them into ZIP bundles for GitHub Releases.
+Cloud Downloader for GitHub Actions Runner (Batch Matrix Edition)
+Fetches a specific batch slice of media assets and packages them into a release ZIP.
 """
 
 import os
@@ -9,14 +8,13 @@ import re
 import sys
 import json
 import zipfile
+import argparse
 import urllib.request
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 RECORDS_FILE = BASE_DIR / "records.json"
 OUTPUT_DIR = BASE_DIR / "cloud_downloads"
-VIDEOS_DIR = OUTPUT_DIR / "videos"
-DOCS_DIR = OUTPUT_DIR / "docs"
 
 DVIDS_BASE = "https://www.dvidshub.net"
 
@@ -61,6 +59,12 @@ def zip_directory(source_dir: Path, zip_path: Path):
     print(f"Created {zip_path.name} ({size_mb:.2f} MB)")
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--start", type=int, default=0, help="Batch start index")
+    parser.add_argument("--size", type=int, default=40, help="Batch size")
+    parser.add_argument("--output-zip", type=str, default="batch.zip", help="Output ZIP file name")
+    args = parser.parse_args()
+
     if not RECORDS_FILE.exists():
         print(f"Error: {RECORDS_FILE} not found!")
         sys.exit(1)
@@ -68,25 +72,23 @@ def main():
     with open(RECORDS_FILE, "r", encoding="utf-8") as f:
         records = json.load(f)
 
-    VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
-    DOCS_DIR.mkdir(parents=True, exist_ok=True)
-
-    limit = int(os.environ.get("DOWNLOAD_LIMIT", "0"))
     vids = [r for r in records if r.get("dvidsVideoId")]
-    if limit > 0:
-        vids = vids[:limit]
+    batch = vids[args.start : args.start + args.size]
 
-    print(f"Found {len(vids)} video/audio records to process in Cloud Runner.")
+    batch_dir = OUTPUT_DIR / f"batch_{args.start}"
+    batch_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Processing Batch [{args.start} to {args.start + len(batch)}] of {len(vids)} total videos.")
 
     downloaded = 0
-    for idx, r in enumerate(vids, 1):
+    for idx, r in enumerate(batch, 1):
         vid_id = r.get("dvidsVideoId")
         title = r.get("title", f"video_{vid_id}")
         clean_title = re.sub(r'[^A-Za-z0-9._-]+', '_', title)[:80]
         filename = f"{clean_title}__dvids{vid_id}.mp4"
-        dest = VIDEOS_DIR / filename
+        dest = batch_dir / filename
 
-        print(f"[{idx}/{len(vids)}] Fetching DVIDS #{vid_id}: {clean_title[:40]}...")
+        print(f"[{idx}/{len(batch)}] Fetching DVIDS #{vid_id}: {clean_title[:35]}...")
         mp4_url = fetch_mp4_url(vid_id)
         if mp4_url:
             if download_file(mp4_url, dest):
@@ -96,13 +98,12 @@ def main():
             else:
                 print("  -> Download Failed")
         else:
-            print("  -> Could not resolve CloudFront MP4 URL")
+            print("  -> Could not resolve MP4 URL")
 
-    # Zip the downloaded videos
-    release_zip = BASE_DIR / "ufo_tranches_videos.zip"
-    zip_directory(VIDEOS_DIR, release_zip)
-
-    print(f"\nCompleted! Downloaded {downloaded} media files into {release_zip.name}")
+    # Zip the downloaded batch
+    release_zip = BASE_DIR / args.output_zip
+    zip_directory(batch_dir, release_zip)
+    print(f"\nBatch completed: {downloaded} files zipped into {release_zip.name}")
 
 if __name__ == "__main__":
     main()
