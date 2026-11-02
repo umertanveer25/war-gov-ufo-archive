@@ -1,0 +1,54 @@
+name: Download and Release UFO Tranches
+
+on:
+  workflow_dispatch:
+    inputs:
+      download_limit:
+        description: 'Number of videos to download (0 for all)'
+        required: false
+        default: '25'
+      release_tag:
+        description: 'Release Tag'
+        required: false
+        default: 'v1.0-media'
+
+permissions:
+  contents: write
+
+jobs:
+  download-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Cloud Media Downloader
+        env:
+          DOWNLOAD_LIMIT: ${{ github.event.inputs.download_limit }}
+        run: |
+          python scripts/cloud_downloader.py
+
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: "Declassified PURSUE UFO Tranches Media Package"
+          body: |
+            ### Automated Declassified UAP/UFO Cloud Release
+            * Extracted directly from official government repositories and DVIDS CloudFront feeds.
+            * Processed and packaged automatically via GitHub Actions.
+            * Includes military sensor videos, FLIR footage, and mission audio logs.
+          files: |
+            ufo_tranches_videos.zip
+            records.json
+            uap-csv.csv
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

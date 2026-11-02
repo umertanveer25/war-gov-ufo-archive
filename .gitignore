@@ -1,0 +1,15 @@
+# Ignore heavy binary data from standard git push
+downloads/
+*.pdf
+*.mp4
+*.bin
+*.part
+
+# Environment and temp files
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Large raw extracted files
+realufo_pages.jsonl
