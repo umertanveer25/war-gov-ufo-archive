@@ -13,22 +13,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - part: "1"
+          - part: "01"
             start: 0
-            size: 40
-            zip: "ufo_media_part1.zip"
-          - part: "2"
+            size: 20
+            zip: "ufo_media_part01.zip"
+          - part: "02"
+            start: 20
+            size: 20
+            zip: "ufo_media_part02.zip"
+          - part: "03"
             start: 40
-            size: 40
-            zip: "ufo_media_part2.zip"
-          - part: "3"
+            size: 20
+            zip: "ufo_media_part03.zip"
+          - part: "04"
+            start: 60
+            size: 20
+            zip: "ufo_media_part04.zip"
+          - part: "05"
             start: 80
-            size: 40
-            zip: "ufo_media_part3.zip"
-          - part: "4"
+            size: 20
+            zip: "ufo_media_part05.zip"
+          - part: "06"
+            start: 100
+            size: 20
+            zip: "ufo_media_part06.zip"
+          - part: "07"
             start: 120
-            size: 45
-            zip: "ufo_media_part4.zip"
+            size: 20
+            zip: "ufo_media_part07.zip"
+          - part: "08"
+            start: 140
+            size: 25
+            zip: "ufo_media_part08.zip"
 
     steps:
       - name: Checkout Code
