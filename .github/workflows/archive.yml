@@ -1,4 +1,4 @@
-name: Download All Media Tranches in Cloud
+name: Download All Media and Documents in Cloud
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  download-batch:
+  download-media-batches:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -15,36 +15,48 @@ jobs:
         include:
           - part: "01"
             start: 0
-            size: 20
-            zip: "ufo_media_part01.zip"
+            size: 15
+            base: "ufo_media_part01"
           - part: "02"
-            start: 20
-            size: 20
-            zip: "ufo_media_part02.zip"
+            start: 15
+            size: 15
+            base: "ufo_media_part02"
           - part: "03"
-            start: 40
-            size: 20
-            zip: "ufo_media_part03.zip"
+            start: 30
+            size: 15
+            base: "ufo_media_part03"
           - part: "04"
-            start: 60
-            size: 20
-            zip: "ufo_media_part04.zip"
+            start: 45
+            size: 15
+            base: "ufo_media_part04"
           - part: "05"
-            start: 80
-            size: 20
-            zip: "ufo_media_part05.zip"
+            start: 60
+            size: 15
+            base: "ufo_media_part05"
           - part: "06"
-            start: 100
-            size: 20
-            zip: "ufo_media_part06.zip"
+            start: 75
+            size: 15
+            base: "ufo_media_part06"
           - part: "07"
-            start: 120
-            size: 20
-            zip: "ufo_media_part07.zip"
+            start: 90
+            size: 15
+            base: "ufo_media_part07"
           - part: "08"
-            start: 140
-            size: 25
-            zip: "ufo_media_part08.zip"
+            start: 105
+            size: 15
+            base: "ufo_media_part08"
+          - part: "09"
+            start: 120
+            size: 15
+            base: "ufo_media_part09"
+          - part: "10"
+            start: 135
+            size: 15
+            base: "ufo_media_part10"
+          - part: "11"
+            start: 150
+            size: 20
+            base: "ufo_media_part11"
 
     steps:
       - name: Checkout Code
@@ -57,17 +69,39 @@ jobs:
 
       - name: Download Media Batch ${{ matrix.part }}
         run: |
-          python scripts/cloud_downloader.py --start ${{ matrix.start }} --size ${{ matrix.size }} --output-zip ${{ matrix.zip }}
+          python scripts/cloud_downloader.py --start ${{ matrix.start }} --size ${{ matrix.size }} --base-name ${{ matrix.base }}
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v1.0-complete-archive"
           name: "Complete Declassified PURSUE UAP/UFO Multi-Tranche Archive"
-          body: |
-            ### Complete Multi-Tranche Declassified UAP/UFO Archive
-            Automated cloud-processed release from military and intelligence feeds (DVIDS, CloudFront, war.gov).
-            Includes all sensor footage, FLIR telemetry, and flight debriefs.
-          files: ${{ matrix.zip }}
+          files: "${{ matrix.base }}*.zip"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  download-documents:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download All PDFs and Compress
+        run: |
+          python scripts/cloud_pdf_downloader.py
+
+      - name: Upload PDFs to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v1.0-complete-archive"
+          name: "Complete Declassified PURSUE UAP/UFO Multi-Tranche Archive"
+          files: |
+            ufo_documents_volume1.zip
+            ufo_documents_volume2.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

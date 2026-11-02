@@ -1,6 +1,6 @@
 """
-Cloud Downloader for GitHub Actions Runner (Batch Matrix Edition)
-Fetches a specific batch slice of media assets and packages them into a release ZIP.
+Cloud Downloader for GitHub Actions Runner
+Fetches media assets (videos, audio, images) and ensures ZIP files never exceed 1.5 GB.
 """
 
 import os
@@ -17,6 +17,7 @@ RECORDS_FILE = BASE_DIR / "records.json"
 OUTPUT_DIR = BASE_DIR / "cloud_downloads"
 
 DVIDS_BASE = "https://www.dvidshub.net"
+MAX_ZIP_BYTES = 1_500_000_000  # 1.5 GB safe threshold (GitHub limit is 2.14 GB)
 
 def fetch_mp4_url(dvids_id: str) -> str:
     embed_url = f"{DVIDS_BASE}/video/embed/{dvids_id}"
@@ -49,20 +50,38 @@ def download_file(url: str, dest: Path) -> bool:
             dest.unlink()
         return False
 
-def zip_directory(source_dir: Path, zip_path: Path):
-    print(f"\nCompressing {source_dir.name} into {zip_path.name}...")
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        for file in source_dir.glob("*"):
-            if file.is_file():
-                zipf.write(file, arcname=file.name)
-    size_mb = zip_path.stat().st_size / (1024 * 1024)
-    print(f"Created {zip_path.name} ({size_mb:.2f} MB)")
+def zip_files_safe(files: list[Path], base_name: str) -> list[Path]:
+    """Zips files, automatically rolling over to a new volume if size approaches 1.5 GB."""
+    zip_files = []
+    part = 1
+    current_zip_path = BASE_DIR / f"{base_name}.zip"
+    current_zip = zipfile.ZipFile(current_zip_path, 'w', zipfile.ZIP_DEFLATED)
+    current_size = 0
+
+    for f in files:
+        f_size = f.stat().st_size
+        if current_size + f_size > MAX_ZIP_BYTES and current_size > 0:
+            current_zip.close()
+            zip_files.append(current_zip_path)
+            part += 1
+            current_zip_path = BASE_DIR / f"{base_name}_part{part}.zip"
+            current_zip = zipfile.ZipFile(current_zip_path, 'w', zipfile.ZIP_DEFLATED)
+            current_size = 0
+
+        current_zip.write(f, arcname=f.name)
+        current_size += f_size
+
+    current_zip.close()
+    if current_zip_path.stat().st_size > 0:
+        zip_files.append(current_zip_path)
+
+    return zip_files
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--start", type=int, default=0, help="Batch start index")
-    parser.add_argument("--size", type=int, default=40, help="Batch size")
-    parser.add_argument("--output-zip", type=str, default="batch.zip", help="Output ZIP file name")
+    parser.add_argument("--size", type=int, default=15, help="Batch size")
+    parser.add_argument("--base-name", type=str, default="ufo_media_batch", help="Base name for zip output")
     args = parser.parse_args()
 
     if not RECORDS_FILE.exists():
@@ -80,7 +99,7 @@ def main():
 
     print(f"Processing Batch [{args.start} to {args.start + len(batch)}] of {len(vids)} total videos.")
 
-    downloaded = 0
+    downloaded_files = []
     for idx, r in enumerate(batch, 1):
         vid_id = r.get("dvidsVideoId")
         title = r.get("title", f"video_{vid_id}")
@@ -94,16 +113,17 @@ def main():
             if download_file(mp4_url, dest):
                 size_mb = dest.stat().st_size / (1024 * 1024)
                 print(f"  -> OK ({size_mb:.2f} MB)")
-                downloaded += 1
+                downloaded_files.append(dest)
             else:
                 print("  -> Download Failed")
         else:
             print("  -> Could not resolve MP4 URL")
 
-    # Zip the downloaded batch
-    release_zip = BASE_DIR / args.output_zip
-    zip_directory(batch_dir, release_zip)
-    print(f"\nBatch completed: {downloaded} files zipped into {release_zip.name}")
+    # Safe zip creation under 1.5 GB
+    zips = zip_files_safe(downloaded_files, args.base_name)
+    print(f"\nGenerated {len(zips)} safe ZIP volumes:")
+    for z in zips:
+        print(f"  - {z.name} ({z.stat().st_size / (1024*1024):.2f} MB)")
 
 if __name__ == "__main__":
     main()
